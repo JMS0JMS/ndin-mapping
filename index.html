@@ -136,10 +136,18 @@
 
     try {
       const centrePc = norm(document.getElementById("centre").value);
-      const hubs = document.getElementById("hubs").value
+      const hubLines = document.getElementById("hubs").value
         .split(/\r?\n/)
-        .map(norm)
+        .map(l => l.trim())
         .filter(Boolean);
+
+      const hubs = hubLines.map(line => {
+      const parts = line.split("|").map(p => p.trim());
+      const postcode = norm(parts[0] || "");
+      const name = parts[1] || postcode; // fallback: show postcode if no name given
+      return { postcode, name };
+    }).filter(h => h.postcode);
+
       const radiusKm = Number(document.getElementById("radius").value);
 
       if (!centrePc || !hubs.length) throw new Error("Enter centre + at least one hub postcode.");

@@ -100,6 +100,13 @@
     return pc.trim().toUpperCase().replace(/\s+/g, "");
   }
 
+  const HUB_ICON = L.icon({
+  iconUrl: "./gtf-logo.png",
+  iconSize: [12, 12],      // tweak size here
+  iconAnchor: [8, 8],      // half of iconSize keeps it centred
+  popupAnchor: [0, -8]
+});
+
   function distanceKm(aLat, aLon, bLat, bLon) {
     const R = 6371;
     const dLat = (bLat - aLat) * Math.PI / 180;
@@ -171,10 +178,7 @@
 
       if (d <= radiusKm) inside++; else outside++;
     
-      const marker = L.circleMarker(ll, {
-        radius: 6,
-        color: d <= radiusKm ? "green" : "red"
-      }).addTo(layerGroup);
+      const marker = L.marker(ll, { icon: HUB_ICON }).addTo(layerGroup);
     
       // Hover label (works on desktop; on iPad it shows on tap)
       marker.bindTooltip(hubMeta?.name || hubMeta?.postcode || "Hub", {

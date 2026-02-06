@@ -169,7 +169,7 @@ EC1A 1BB | City Advice Centre"></textarea>
 
       L.marker(cLatLng)
         .addTo(layerGroup)
-        .bindPopup(`<strong>${centreName}</strong><br>${centre.postcode}`)
+        .bindPopup(`<strong>${centreName}</strong>`)
         .bindTooltip(centreName, {
           permanent: false, // set true if you want it always visible
           direction: "top",

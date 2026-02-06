@@ -3,34 +3,62 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Digital Inclusion Hubs – Postcode Mapper (UK)</title>
+  <title>Digital Inclusion Hubs – Mapper</title>
 
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
-    .wrap { display: flex; flex-direction: row; height: 100vh; }
+    .wrap { display: flex; height: 100vh; }
     .panel {
-      width: 360px; padding: 16px; overflow-y: auto;
+      width: 380px; padding: 16px; overflow-y: auto;
       border-right: 1px solid #e6e6e6; background: #fafafa;
     }
     h1 { font-size: 16px; margin-bottom: 12px; }
-    label { font-size: 12px; color: #444; display: block; margin: 10px 0 4px; }
+    label { font-size: 12px; color: #444; display: block; margin-top: 10px; }
     input, textarea, button {
-      width: 100%; font-size: 14px; padding: 10px;
-      border-radius: 10px; border: 1px solid #ccc; box-sizing: border-box;
+      width: 100%; padding: 10px; font-size: 14px;
+      border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;
     }
-    textarea { min-height: 140px; }
-    textarea:disabled { background: #f0f0f0; color: #888; }
+    textarea { min-height: 120px; }
+    textarea:disabled { background: #eee; color: #777; }
     button {
-      margin-top: 12px; background: #111; color: #fff;
-      font-weight: 600; cursor: pointer;
+      background: #111; color: #fff; font-weight: 600;
+      margin-top: 12px; cursor: pointer;
     }
-    .small { font-size: 12px; color: #666; margin-top: 4px; }
-    .stats { font-size: 13px; margin-top: 12px; }
-    .error { color: #b00020; font-size: 12px; white-space: pre-wrap; margin-top: 8px; }
+    .small { font-size: 12px; color: #666; }
+    .stats { font-size: 13px; margin-top: 10px; }
+    .error { color: #b00020; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+
+    .dropzone {
+      margin-top: 8px;
+      padding: 14px;
+      border: 2px dashed #bbb;
+      border-radius: 8px;
+      text-align: center;
+      background: #fff;
+      font-size: 12px;
+      color: #555;
+    }
+    .dropzone.dragover {
+      border-color: #111;
+      background: #f0f0f0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+
     #map { flex: 1; }
 
     @media (max-width: 900px) {
@@ -47,31 +75,24 @@
     <h1>Digital Inclusion Hub Mapper</h1>
 
     <label>Central postcode</label>
-    <input id="centre" placeholder="E1 6AN" autocapitalize="characters">
+    <input id="centre" placeholder="E1 6AN">
 
-    <label>Centre name (optional)</label>
+    <label>Centre name</label>
     <input id="centreName" placeholder="e.g. Birmingham City Centre">
 
-    <label>Hubs (manual entry)</label>
-    <textarea id="hubs" placeholder="One per line:
-Westminster Hub, SW1A 1AA
-City Advice Centre, EC1A 1BB"></textarea>
-    <div class="small">Format: <strong>Hub name, postcode</strong></div>
-
-    <hr style="margin:12px 0;">
+    <label>Manual hub entry</label>
+    <textarea id="hubs" placeholder="Hub name, postcode"></textarea>
+    <div class="small">Format: <strong>name, postcode</strong> (one per line)</div>
 
     <label>Or upload hubs CSV</label>
     <input type="file" id="hubFile" accept=".csv">
-    <div class="small" id="csvStatus">
-      CSV format: <strong>no headers</strong><br>
-      Column A = hub name<br>
-      Column B = postcode
-    </div>
+    <div class="dropzone" id="dropzone">Or drag & drop CSV here</div>
+    <div class="small" id="csvStatus">CSV: no headers · Column A = name · Column B = postcode</div>
 
     <label>Radius (km)</label>
-    <input id="radius" type="number" value="5" step="0.1" min="0.1">
+    <input id="radius" type="number" value="5" step="0.1">
 
-    <button type="button" onclick="run()">Map hubs</button>
+    <button onclick="run()">Map hubs</button>
 
     <div class="stats">
       Inside radius: <span id="inCount">0</span><br>
@@ -79,6 +100,9 @@ City Advice Centre, EC1A 1BB"></textarea>
       Total mapped: <span id="totalCount">0</span>
     </div>
 
+    <button id="exportBtn" style="display:none;">Export results CSV</button>
+
+    <div id="preview"></div>
     <div class="error" id="err"></div>
   </div>
 
@@ -86,142 +110,126 @@ City Advice Centre, EC1A 1BB"></textarea>
 </div>
 
 <script>
-  // --- Map ---
   const map = L.map("map").setView([51.5074, -0.1278], 11);
-  L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}" +
-      (L.Browser.retina ? "@2x.png" : ".png"),
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}" +
+    (L.Browser.retina ? "@2x.png" : ".png"),
     { subdomains: "abcd", maxZoom: 20 }
   ).addTo(map);
 
   const layerGroup = L.layerGroup().addTo(map);
-  let radiusCircle;
-
-  function norm(pc) {
-    return (pc || "").trim().toUpperCase().replace(/\s+/g, "");
-  }
+  let radiusCircle, exportRows = [];
 
   const HUB_ICON = L.icon({
     iconUrl: "./gtf-logo.png",
-    iconSize: [22, 22],
-    iconAnchor: [11, 11]
+    iconSize: [22,22],
+    iconAnchor: [11,11]
   });
 
-  function distanceKm(aLat, aLon, bLat, bLon) {
-    const R = 6371;
-    const dLat = (bLat - aLat) * Math.PI / 180;
-    const dLon = (bLon - aLon) * Math.PI / 180;
-    const lat1 = aLat * Math.PI / 180;
-    const lat2 = bLat * Math.PI / 180;
-    const h =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(h));
-  }
-
-  async function geocodeSingle(pc) {
-    const r = await fetch("https://api.postcodes.io/postcodes/" + encodeURIComponent(pc));
-    const j = await r.json();
-    if (!j.result) throw new Error("Invalid centre postcode");
-    return j.result;
-  }
-
-  async function geocodeBulk(list) {
-    const r = await fetch("https://api.postcodes.io/postcodes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postcodes: list })
-    });
-    const j = await r.json();
-    return j.result.filter(x => x.result).map(x => x.result);
-  }
+  const norm = pc => (pc||"").trim().toUpperCase().replace(/\s+/g,"");
 
   function parseCSV(text) {
-    return text.split(/\r?\n/).filter(Boolean).map((line, i) => {
-      const cols = line.split(",").map(c => c.trim());
-      if (cols.length < 2) throw new Error(`CSV error on line ${i + 1}`);
-      return { name: cols[0], postcode: norm(cols[1]) };
+    return text.split(/\r?\n/).filter(Boolean).map((l,i)=>{
+      const c=l.split(",").map(x=>x.trim());
+      if(c.length<2) throw `CSV error line ${i+1}`;
+      return {name:c[0], postcode:norm(c[1])};
     });
   }
 
-  // Disable textarea when CSV chosen
-  document.getElementById("hubFile").addEventListener("change", e => {
-    const ta = document.getElementById("hubs");
-    const status = document.getElementById("csvStatus");
-    if (e.target.files.length) {
-      ta.disabled = true;
-      status.innerHTML = `<strong>Using CSV:</strong> ${e.target.files[0].name}`;
-    } else {
-      ta.disabled = false;
-      status.innerHTML = `CSV format: <strong>no headers</strong><br>Column A = hub name<br>Column B = postcode`;
-    }
-  });
+  function preview(hubs, source) {
+    const rows = hubs.slice(0,5).map(h =>
+      `<tr><td>${h.name}</td><td>${h.postcode}</td></tr>`).join("");
+    document.getElementById("preview").innerHTML = `
+      <div class="small">Preview (${source}, first ${Math.min(5,hubs.length)} rows)</div>
+      <table><tr><th>Name</th><th>Postcode</th></tr>${rows}</table>`;
+  }
+
+  function distanceKm(aLat,aLon,bLat,bLon){
+    const R=6371,dLat=(bLat-aLat)*Math.PI/180,dLon=(bLon-aLon)*Math.PI/180;
+    const h=Math.sin(dLat/2)**2+Math.cos(aLat*Math.PI/180)*Math.cos(bLat*Math.PI/180)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
 
   async function run() {
-    document.getElementById("err").textContent = "";
-    layerGroup.clearLayers();
-    if (radiusCircle) map.removeLayer(radiusCircle);
+    document.getElementById("err").textContent="";
+    layerGroup.clearLayers(); exportRows=[];
+    if(radiusCircle) map.removeLayer(radiusCircle);
 
     try {
-      const centrePc = norm(document.getElementById("centre").value);
-      const centreName = document.getElementById("centreName").value.trim() || "Centre";
-      const radiusKm = Number(document.getElementById("radius").value);
+      const centrePc = norm(centre.value);
+      const centreName = centreNameInput.value || "Centre";
+      const radiusKm = +radius.value;
 
-      let hubs = [];
-
-      const fileInput = document.getElementById("hubFile");
-      if (fileInput.files.length) {
-        hubs = parseCSV(await fileInput.files[0].text());
+      let hubs=[];
+      if(hubFile.files.length){
+        hubs=parseCSV(await hubFile.files[0].text());
+        hubsTextarea.disabled=true;
+        preview(hubs,"CSV");
       } else {
-        hubs = document.getElementById("hubs").value
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .map((line, i) => {
-            const parts = line.split(",").map(p => p.trim());
-            if (parts.length < 2) throw new Error(`Manual entry error on line ${i + 1}`);
-            return { name: parts[0], postcode: norm(parts[1]) };
-          });
+        hubs=hubsTextarea.value.split(/\r?\n/).filter(Boolean).map((l,i)=>{
+          const p=l.split(",").map(x=>x.trim());
+          if(p.length<2) throw `Manual entry error line ${i+1}`;
+          return {name:p[0],postcode:norm(p[1])};
+        });
+        preview(hubs,"Manual");
       }
 
-      if (!centrePc || !hubs.length) throw new Error("Enter a centre and at least one hub.");
+      if(!centrePc||!hubs.length) throw "Missing centre or hubs";
 
-      const centre = await geocodeSingle(centrePc);
-      const hubResults = await geocodeBulk(hubs.map(h => h.postcode));
+      const centreRes = await fetch(`https://api.postcodes.io/postcodes/${centrePc}`).then(r=>r.json());
+      const c=centreRes.result;
+      const hubRes = await fetch("https://api.postcodes.io/postcodes",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({postcodes:hubs.map(h=>h.postcode)})
+      }).then(r=>r.json());
 
-      const cLatLng = [centre.latitude, centre.longitude];
-      L.marker(cLatLng)
-        .addTo(layerGroup)
-        .bindTooltip(centreName, { direction: "top", offset: [0, -8] })
-        .bindPopup(`<strong>${centreName}</strong>`);
+      const cLL=[c.latitude,c.longitude];
+      L.marker(cLL).addTo(layerGroup).bindTooltip(centreName).bindPopup(`<strong>${centreName}</strong>`);
+      radiusCircle=L.circle(cLL,{radius:radiusKm*1000,fill:false}).addTo(map);
 
-      radiusCircle = L.circle(cLatLng, { radius: radiusKm * 1000, fill: false }).addTo(map);
+      let inside=0,outside=0,bounds=[cLL];
 
-      let inside = 0, outside = 0;
-      const bounds = [cLatLng];
-
-      hubResults.forEach((h, i) => {
-        const meta = hubs[i];
-        const d = distanceKm(centre.latitude, centre.longitude, h.latitude, h.longitude);
-        if (d <= radiusKm) inside++; else outside++;
-
-        const ll = [h.latitude, h.longitude];
+      hubRes.result.forEach((r,i)=>{
+        if(!r.result) return;
+        const h=r.result,meta=hubs[i];
+        const d=distanceKm(c.latitude,c.longitude,h.latitude,h.longitude);
+        const ll=[h.latitude,h.longitude];
         bounds.push(ll);
-
-        const m = L.marker(ll, { icon: HUB_ICON }).addTo(layerGroup);
-        m.bindTooltip(meta.name, { direction: "top", offset: [0, -6], sticky: true });
-        m.bindPopup(`<strong>${meta.name}</strong>`);
+        const inRad=d<=radiusKm;
+        inRad?inside++:outside++;
+        exportRows.push([meta.name,meta.postcode,d.toFixed(2),inRad?"yes":"no"].join(","));
+        L.marker(ll,{icon:HUB_ICON}).addTo(layerGroup)
+          .bindTooltip(meta.name,{sticky:true})
+          .bindPopup(`<strong>${meta.name}</strong>`);
       });
 
-      map.fitBounds(bounds, { padding: [30, 30] });
+      map.fitBounds(bounds,{padding:[30,30]});
+      inCount.textContent=inside;
+      outCount.textContent=outside;
+      totalCount.textContent=inside+outside;
+      exportBtn.style.display="block";
 
-      document.getElementById("inCount").textContent = inside;
-      document.getElementById("outCount").textContent = outside;
-      document.getElementById("totalCount").textContent = hubResults.length;
-
-    } catch (e) {
-      document.getElementById("err").textContent = e.message;
+    } catch(e){
+      err.textContent=e;
     }
   }
+
+  exportBtn.onclick=()=>{
+    const csv=["name,postcode,distance_km,inside_radius",...exportRows].join("\n");
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download="hub-radius-results.csv";
+    a.click();
+  };
+
+  const dz=document.getElementById("dropzone");
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add("dragover");};
+  dz.ondragleave=()=>dz.classList.remove("dragover");
+  dz.ondrop=e=>{
+    e.preventDefault();dz.classList.remove("dragover");
+    hubFile.files=e.dataTransfer.files;
+    csvStatus.textContent=`Using CSV: ${hubFile.files[0].name}`;
+    hubsTextarea.disabled=true;
+  };
 </script>
 </body>
 </html>

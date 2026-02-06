@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- SheetJS (XLSX/XLS/CSV/TSV parsing) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+
   <style>
     :root{
       --bg: #ffffff;
@@ -48,7 +51,6 @@
       border-bottom: 1px solid var(--muted);
       margin-bottom: 14px;
     }
-    /* Guardrails so the logo can't explode in size */
     .brand img{
       height: 40px;
       max-width: 220px;
@@ -70,7 +72,6 @@
       margin-bottom: 12px;
       overflow:hidden;
     }
-    /* Default rail (stage 1) */
     .stage::before{
       content:"";
       position:absolute;
@@ -78,7 +79,6 @@
       width: 6px;
       background: var(--teal);
     }
-    /* IMPORTANT: keep these after the default rule so they override */
     .stage.stage2::before{ background: var(--orange); }
     .stage.stage3::before{ background: var(--yellow); }
 
@@ -115,7 +115,6 @@
       background: #fff;
       color: var(--ink);
     }
-    textarea{ min-height: 160px; resize: vertical; }
     input:focus, textarea:focus, select:focus{
       border-color: rgba(0,163,158,.55);
       box-shadow: 0 0 0 4px rgba(0,163,158,.12);
@@ -173,6 +172,64 @@
       white-space:nowrap;
     }
 
+    .chipRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+    .chip{
+      font-size: 12px;
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(3,19,102,.12);
+      background: rgba(3,19,102,.04);
+      color: rgba(3,19,102,.85);
+    }
+
+    /* Manual entry table */
+    .manualWrap{
+      margin-top: 10px;
+      border: 1px solid var(--muted);
+      border-radius: 14px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .manualHead{
+      display:grid;
+      grid-template-columns: 1fr 140px;
+      gap: 0;
+      padding: 10px 12px;
+      background: rgba(3,19,102,.04);
+      border-bottom: 1px solid var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .manualGrid{
+      display:grid;
+      grid-template-columns: 1fr 140px;
+      gap: 0;
+    }
+    .manualGrid input{
+      border: 0;
+      border-bottom: 1px solid var(--muted);
+      border-radius: 0;
+      box-shadow: none !important;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .manualGrid input:nth-last-child(-n+2){ border-bottom: 0; } /* last row */
+    .manualGrid input:focus{
+      outline:none;
+      background: rgba(0,163,158,.06);
+    }
+    .manualNote{
+      font-size: 12px;
+      color: rgba(3,19,102,.72);
+      margin-top: 8px;
+    }
+    .uploadStatus{
+      font-size: 12px;
+      font-weight: 800;
+      color: rgba(3,19,102,.80);
+    }
+
     .stats{
       display:grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -193,17 +250,6 @@
       font-size: 12px;
       color: #cf1c45;
       white-space: pre-wrap;
-    }
-
-    .chipRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
-    .chip{
-      font-size: 12px;
-      font-weight: 800;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(3,19,102,.12);
-      background: rgba(3,19,102,.04);
-      color: rgba(3,19,102,.85);
     }
 
     /* Map */
@@ -257,6 +303,7 @@
       .wrap{ flex-direction: column; }
       .sidebar{ width: 100%; border-right:none; border-bottom: 1px solid var(--muted); }
       #map{ height: 60vh; }
+      .manualHead, .manualGrid{ grid-template-columns: 1fr 120px; }
     }
   </style>
 </head>
@@ -267,7 +314,7 @@
     <div class="brand">
       <img src="./gtf-logo-full.png" alt="Good Things Foundation logo">
       <div class="title">
-        <strong>National Digital Inclusion Network</strong>
+        <strong>National Digital Inclusion Network Mapping</strong>
         <span>Postcode-based hub visualiser</span>
       </div>
     </div>
@@ -275,7 +322,7 @@
     <!-- Stage 1 -->
     <section class="stage stage1">
       <div class="sectionHeader">
-        <h2>Step 1 — Central location</h2>
+        <h2>Stage 1 — Central location</h2>
         <span class="badge">1</span>
       </div>
 
@@ -291,44 +338,50 @@
     <!-- Stage 2 -->
     <section class="stage stage2">
       <div class="sectionHeader">
-        <h2>Step 2 — Hubs to map</h2>
+        <h2>Stage 2 — Hubs to map</h2>
         <span class="badge">2</span>
       </div>
 
       <div id="dropzone" class="dropzone">
         <div class="dzTop">
           <div>
-            <strong>Upload CSV</strong>
+            <strong>Upload a spreadsheet</strong>
             <div class="small">Drag & drop, or tap to choose</div>
           </div>
           <label class="fileBtn">
             Choose file
-            <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none;">
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,text/tab-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;">
           </label>
         </div>
 
         <div class="hint">
-          Expected columns: <strong>postcode</strong> and <strong>name</strong>.
-          Example header: <code>postcode,name</code>
+          Format required: <strong>two columns, no headers</strong><br>
+          Column A = <strong>Hub Name</strong>, Column B = <strong>Postcode</strong>
         </div>
+
+        <div class="uploadStatus" id="uploadStatus">No file loaded yet.</div>
       </div>
 
       <div class="chipRow">
-        <span class="chip">CSV → auto-fills manual list</span>
-        <span class="chip">Format: postcode | name</span>
+        <span class="chip">Manual entry is limited to 10 hubs</span>
+        <span class="chip">More than 10 → upload required</span>
       </div>
 
-      <label for="hubs">Or paste manually (one per line)</label>
-      <textarea id="hubs" autocapitalize="characters" placeholder="SW1A 1AA | Westminster Hub
-EC1A 1BB | City Advice Centre"></textarea>
-
-      <div class="hint">If you paste only postcodes, the name will default to the postcode.</div>
+      <label>Manual entry (up to 10)</label>
+      <div class="manualWrap">
+        <div class="manualHead">
+          <div>Hub name</div>
+          <div>Postcode</div>
+        </div>
+        <div class="manualGrid" id="manualGrid"></div>
+      </div>
+      <div class="manualNote">If you need more than 10 hubs, use upload above. Uploaded data is used automatically once loaded.</div>
     </section>
 
     <!-- Stage 3 -->
     <section class="stage stage3">
       <div class="sectionHeader">
-        <h2>Step 3 — Parameters</h2>
+        <h2>Stage 3 — Parameters</h2>
         <span class="badge">3</span>
       </div>
 
@@ -408,17 +461,8 @@ EC1A 1BB | City Advice Centre"></textarea>
   let radiusGlow = null;
   let legendControl = null;
 
-  function norm(pc) {
-    return (pc || "").trim().toUpperCase().replace(/\s+/g, "");
-  }
-
-  // Hub icon (gtf-logo.png should exist alongside index.html)
-  const HUB_ICON = L.icon({
-    iconUrl: "./gtf-logo.png",
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -10]
-  });
+  // Uploaded hubs live here once loaded successfully
+  let uploadedHubs = null;
 
   function setError(msg){ document.getElementById("err").textContent = msg || ""; }
   function setCounts(i,o,t){
@@ -434,7 +478,32 @@ EC1A 1BB | City Advice Centre"></textarea>
     if (radiusGlow) { map.removeLayer(radiusGlow); radiusGlow = null; }
     if (legendControl) { map.removeControl(legendControl); legendControl = null; }
     setCounts(0,0,0);
+    uploadedHubs = null;
+    document.getElementById("uploadStatus").textContent = "No file loaded yet.";
+    // clear manual inputs
+    for (const el of document.querySelectorAll(".manualGrid input")) el.value = "";
   }
+
+  function norm(pc) {
+    return (pc || "").trim().toUpperCase().replace(/\s+/g, "");
+  }
+
+  // Basic UK postcode heuristic (good enough for validation + swapped detection)
+  const POSTCODE_RE = /^([A-Z]{1,2}\d[A-Z\d]?)(\d[A-Z]{2})$/;
+
+  function looksLikePostcode(s){
+    const n = norm(s);
+    if (!n) return false;
+    return POSTCODE_RE.test(n);
+  }
+
+  // Hub icon (gtf-logo.png should exist alongside index.html)
+  const HUB_ICON = L.icon({
+    iconUrl: "./gtf-logo.png",
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -10]
+  });
 
   // Haversine distance in km
   function distanceKm(aLat, aLon, bLat, bLon) {
@@ -464,6 +533,7 @@ EC1A 1BB | City Advice Centre"></textarea>
     });
     const j = await r.json();
     if (!j.result) throw new Error("Bulk lookup failed");
+    // Keep successful only:
     return j.result.filter(x => x.result).map(x => x.result);
   }
 
@@ -482,97 +552,6 @@ EC1A 1BB | City Advice Centre"></textarea>
     const isCustom = ringPreset.value === "custom";
     customColorWrap.style.display = isCustom ? "block" : "none";
     if (!isCustom) ringColorInput.value = ringPreset.value;
-  });
-
-  // --- CSV upload / drag & drop ---
-  const dropzone = document.getElementById("dropzone");
-  const csvFile = document.getElementById("csvFile");
-  const hubsTextarea = document.getElementById("hubs");
-
-  function parseCSV(text){
-    // Minimal CSV parser: handles commas + quoted fields.
-    const rows = [];
-    let row = [], cur = "", inQuotes = false;
-    for (let i=0; i<text.length; i++){
-      const ch = text[i];
-      const next = text[i+1];
-
-      if (ch === '"' ){
-        if (inQuotes && next === '"'){ cur += '"'; i++; }
-        else inQuotes = !inQuotes;
-      } else if (ch === "," && !inQuotes){
-        row.push(cur); cur = "";
-      } else if ((ch === "\n" || ch === "\r") && !inQuotes){
-        if (ch === "\r" && next === "\n") i++;
-        row.push(cur); rows.push(row);
-        row = []; cur = "";
-      } else {
-        cur += ch;
-      }
-    }
-    if (cur.length || row.length){ row.push(cur); rows.push(row); }
-    return rows;
-  }
-
-  function hubsToTextarea(hubs){
-    const lines = hubs.map(h => `${h.postcode} | ${h.name}`);
-    hubsTextarea.value = lines.join("\n");
-  }
-
-  async function handleFile(file){
-    if (!file) return;
-    const text = await file.text();
-    const rows = parseCSV(text).filter(r => r.some(c => (c || "").trim().length));
-    if (!rows.length) { setError("CSV appears empty."); return; }
-
-    const header = rows[0].map(c => (c || "").trim().toLowerCase());
-    const hasHeader = header.includes("postcode") || header.includes("post code") || header.includes("name");
-
-    let start = 0;
-    let postcodeIdx = 0, nameIdx = 1;
-
-    if (hasHeader){
-      start = 1;
-      postcodeIdx = header.findIndex(h => h === "postcode" || h === "post code" || h === "post_code");
-      nameIdx = header.findIndex(h => h === "name" || h === "hub" || h === "hub name");
-      if (postcodeIdx === -1) postcodeIdx = 0;
-      if (nameIdx === -1) nameIdx = 1;
-    }
-
-    const hubs = [];
-    for (let i=start; i<rows.length; i++){
-      const pcRaw = rows[i][postcodeIdx] || "";
-      const nameRaw = rows[i][nameIdx] || "";
-      const postcode = norm(pcRaw);
-      const name = (nameRaw || "").trim() || postcode;
-      if (postcode) hubs.push({postcode, name});
-    }
-
-    if (!hubs.length){ setError("Couldn’t find any postcodes in that CSV."); return; }
-    setError("");
-    hubsToTextarea(hubs);
-  }
-
-  csvFile.addEventListener("change", async (e) => {
-    await handleFile(e.target.files?.[0]);
-    csvFile.value = "";
-  });
-
-  ["dragenter","dragover"].forEach(evt => {
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault(); e.stopPropagation();
-      dropzone.classList.add("dragover");
-    });
-  });
-  ["dragleave","drop"].forEach(evt => {
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault(); e.stopPropagation();
-      dropzone.classList.remove("dragover");
-    });
-  });
-  dropzone.addEventListener("drop", async (e) => {
-    const file = e.dataTransfer?.files?.[0];
-    if (file) await handleFile(file);
   });
 
   // --- Legend ---
@@ -597,13 +576,202 @@ EC1A 1BB | City Advice Centre"></textarea>
           <span>Radius ring</span>
         </div>
       `;
-      // Prevent map dragging/zooming when interacting with legend
       L.DomEvent.disableClickPropagation(div);
       L.DomEvent.disableScrollPropagation(div);
       return div;
     };
     legendControl.addTo(map);
   }
+
+  // --- Manual entry (10 rows) ---
+  const manualGrid = document.getElementById("manualGrid");
+  function buildManualGrid(){
+    manualGrid.innerHTML = "";
+    for (let i = 0; i < 10; i++){
+      const name = document.createElement("input");
+      name.placeholder = `Hub ${i+1} name`;
+      name.setAttribute("data-col", "name");
+      const pc = document.createElement("input");
+      pc.placeholder = `Postcode`;
+      pc.autocapitalize = "characters";
+      pc.setAttribute("data-col", "postcode");
+      manualGrid.appendChild(name);
+      manualGrid.appendChild(pc);
+    }
+  }
+  buildManualGrid();
+
+  function getManualHubs(){
+    const inputs = Array.from(manualGrid.querySelectorAll("input"));
+    const hubs = [];
+    for (let i = 0; i < inputs.length; i += 2){
+      const name = (inputs[i].value || "").trim();
+      const postcodeRaw = (inputs[i+1].value || "").trim();
+      const postcode = norm(postcodeRaw);
+      if (!name && !postcode) continue;
+      hubs.push({ name: name || "Hub", postcode });
+    }
+    return hubs;
+  }
+
+  // --- Upload parsing (XLSX/XLS/CSV/TSV/TXT) ---
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const uploadStatus = document.getElementById("uploadStatus");
+
+  async function readAsArrayBuffer(file){
+    return await file.arrayBuffer();
+  }
+
+  function sheetToRows(workbook){
+    const sheetName = workbook.SheetNames?.[0];
+    if (!sheetName) return [];
+    const ws = workbook.Sheets[sheetName];
+    // header:1 gives arrays of cell values (no headers)
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+    return rows;
+  }
+
+  function normaliseRowsToTwoCols(rows){
+    // keep only rows that have at least something in col A or B
+    const cleaned = [];
+    for (const r of rows){
+      const a = (r?.[0] ?? "").toString().trim();
+      const b = (r?.[1] ?? "").toString().trim();
+      if (!a && !b) continue;
+      cleaned.push([a, b]);
+    }
+    return cleaned;
+  }
+
+  function validateAndMaybeSwap(rowsTwoCols){
+    // Expect: A = name (non-postcode usually), B = postcode
+    let good = 0, swapped = 0, ambiguous = 0;
+
+    for (const [a,b] of rowsTwoCols){
+      const aIsPC = looksLikePostcode(a);
+      const bIsPC = looksLikePostcode(b);
+
+      if (bIsPC && !aIsPC) good++;
+      else if (aIsPC && !bIsPC) swapped++;
+      else ambiguous++;
+    }
+
+    // If they clearly look swapped, ask to continue with swap
+    if (swapped > 0 && swapped >= good * 1.5){
+      const msg =
+        `Your file looks like the columns may be the wrong way around.\n\n` +
+        `Expected: Column A = Hub Name, Column B = Postcode\n` +
+        `Detected: ${swapped} rows where Column A looks like a postcode, and Column B does not.\n` +
+        `Detected: ${good} rows that match the expected format.\n\n` +
+        `Are you sure you want to continue?\n\n` +
+        `OK = Continue (we will swap columns A/B)\n` +
+        `Cancel = Stop (you can fix the file and re-upload)`;
+      const ok = window.confirm(msg);
+      if (!ok) return { ok:false, reason:"Upload cancelled." };
+
+      const swappedRows = rowsTwoCols.map(([a,b]) => [b,a]);
+      return { ok:true, rows: swappedRows, swapped:true };
+    }
+
+    // If almost nothing matches either way, hard error
+    if (good === 0 && swapped === 0){
+      return {
+        ok:false,
+        reason:
+          `Upload format not recognised.\n\n` +
+          `Required: two columns, no headers (A = Hub Name, B = Postcode).\n` +
+          `We couldn't confidently identify postcodes in either column.\n\n` +
+          `Tip: check there are no header rows, and that UK postcodes are in column B.`
+      };
+    }
+
+    // If mixed, but still plausible, allow through (no autofill / no prompts)
+    return { ok:true, rows: rowsTwoCols, swapped:false };
+  }
+
+  function rowsToHubs(rowsTwoCols){
+    return rowsTwoCols.map(([a,b]) => ({
+      name: (a || "").toString().trim() || "Hub",
+      postcode: norm(b || "")
+    })).filter(h => h.postcode);
+  }
+
+  async function handleUploadFile(file){
+    setError("");
+    uploadedHubs = null;
+    uploadStatus.textContent = "Loading…";
+
+    try{
+      const buf = await readAsArrayBuffer(file);
+
+      // Let SheetJS infer format from data
+      const wb = XLSX.read(buf, { type: "array" });
+      let rows = sheetToRows(wb);
+      rows = normaliseRowsToTwoCols(rows);
+
+      // Enforce exactly two columns conceptually: if row has more than 2, we ignore extras,
+      // but if columns are empty, it's still invalid.
+      if (!rows.length) throw new Error("No usable rows found. Ensure your file has data in the first two columns.");
+
+      // Check for accidental headers (not allowed)
+      // If first row contains obvious header words, prompt: are you sure?
+      const firstA = (rows[0][0] || "").toString().toLowerCase();
+      const firstB = (rows[0][1] || "").toString().toLowerCase();
+      const headerish = (firstA.includes("hub") || firstA.includes("name") || firstA.includes("organisation")) &&
+                        (firstB.includes("post") || firstB.includes("zip") || firstB.includes("code"));
+
+      if (headerish){
+        const ok = window.confirm(
+          `Your first row looks like it might be a header.\n\n` +
+          `This tool expects NO headers.\n\n` +
+          `OK = Continue anyway (we'll treat the first row as data)\n` +
+          `Cancel = Stop (remove headers and re-upload)`
+        );
+        if (!ok) throw new Error("Upload cancelled (header row detected).");
+      }
+
+      const verdict = validateAndMaybeSwap(rows);
+      if (!verdict.ok) throw new Error(verdict.reason);
+
+      const hubs = rowsToHubs(verdict.rows);
+      if (!hubs.length) throw new Error("No valid hub postcodes found in column B.");
+
+      uploadedHubs = hubs;
+
+      const swapNote = verdict.swapped ? " (columns swapped)" : "";
+      uploadStatus.textContent = `Loaded: ${uploadedHubs.length} hubs from "${file.name}"${swapNote}.`;
+
+      // If user uploaded >10 hubs, great (meets your rule). If <=10, still fine.
+    } catch (e){
+      uploadedHubs = null;
+      uploadStatus.textContent = "No file loaded yet.";
+      setError(e?.message || String(e));
+    }
+  }
+
+  fileInput.addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (f) await handleUploadFile(f);
+    fileInput.value = "";
+  });
+
+  ["dragenter","dragover"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add("dragover");
+    });
+  });
+  ["dragleave","drop"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.remove("dragover");
+    });
+  });
+  dropzone.addEventListener("drop", async (e) => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await handleUploadFile(file);
+  });
 
   // --- Main run ---
   async function run() {
@@ -617,40 +785,47 @@ EC1A 1BB | City Advice Centre"></textarea>
 
     try {
       const centrePc = norm(document.getElementById("centre").value);
-      const centreName = document.getElementById("centreName")?.value?.trim() || "Centre";
+      const centreName = (document.getElementById("centreName")?.value || "").trim() || "Centre";
       const radiusKm = Number(document.getElementById("radius").value);
       const ringColor = getRingColor();
 
-      const hubLines = hubsTextarea.value
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(Boolean);
-
-      const hubs = hubLines.map(line => {
-        const parts = line.split("|").map(p => p.trim());
-        const postcode = norm(parts[0] || "");
-        const name = parts[1] || postcode;
-        return { postcode, name };
-      }).filter(h => h.postcode);
-
       if (!centrePc) throw new Error("Enter a central postcode.");
-      if (!hubs.length) throw new Error("Add at least one hub (CSV upload or manual entry).");
       if (!Number.isFinite(radiusKm) || radiusKm <= 0) throw new Error("Radius must be a positive number (km).");
 
+      // Choose hubs source:
+      // - If uploadedHubs exists, use it (supports >10)
+      // - Otherwise use manual (limited to 10)
+      let hubs = null;
+      if (uploadedHubs && uploadedHubs.length){
+        hubs = uploadedHubs;
+      } else {
+        hubs = getManualHubs();
+        if (hubs.length > 10) throw new Error("Manual entry is limited to 10 hubs. Please upload a spreadsheet for more than 10.");
+      }
+
+      if (!hubs || !hubs.length) throw new Error("Add hubs via upload (any amount) or manual entry (up to 10).");
+
+      // Validate postcodes for manual
+      const invalidManual = hubs.filter(h => !looksLikePostcode(h.postcode));
+      if (!uploadedHubs && invalidManual.length){
+        throw new Error(`One or more manual postcodes don’t look valid.\nExample: "${invalidManual[0].postcode || "(blank)"}"\n\nTip: UK postcodes only, e.g. "E1 6AN"`);
+      }
+
       const centre = await geocodeSingle(centrePc);
+
+      // Bulk geocode (postcodes only)
       const hubResults = await geocodeBulk(hubs.map(h => h.postcode));
 
       const cLatLng = [centre.latitude, centre.longitude];
 
-      // Centre marker (simple default marker, tooltip shows centre name)
+      // Centre marker
       L.marker(cLatLng)
         .addTo(layerGroup)
         .bindPopup(`<strong>${centreName}</strong>`)
         .bindTooltip(centreName, { permanent:false, direction:"top", offset:[0,-8] })
         .openPopup();
 
-      // Radius glow (soft) + ring (crisp)
-      // Glow: wide stroke + low opacity
+      // Radius glow (soft) + ring (crisp, thicker)
       radiusGlow = L.circle(cLatLng, {
         radius: radiusKm * 1000,
         fill: false,
@@ -660,13 +835,12 @@ EC1A 1BB | City Advice Centre"></textarea>
         interactive: false
       }).addTo(map);
 
-      // Ring: thicker, crisp
       radiusCircle = L.circle(cLatLng, {
         radius: radiusKm * 1000,
         fill: false,
         color: ringColor,
         opacity: 0.95,
-        weight: 5
+        weight: 6
       }).addTo(map);
 
       // Legend
@@ -675,6 +849,8 @@ EC1A 1BB | City Advice Centre"></textarea>
       let inside = 0, outside = 0;
       const bounds = [cLatLng];
 
+      // IMPORTANT: postcodes.io bulk response can drop invalid postcodes.
+      // We still use the same index order assumption for successful ones.
       hubResults.forEach((h, i) => {
         const hubMeta = hubs[i];
         const d = distanceKm(centre.latitude, centre.longitude, h.latitude, h.longitude);

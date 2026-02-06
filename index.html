@@ -3,233 +3,594 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Digital Inclusion Hubs – Mapper</title>
+  <title>NDIN Mapping – Hub Mapper</title>
 
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
-    .wrap { display: flex; height: 100vh; }
-    .panel {
-      width: 380px; padding: 16px; overflow-y: auto;
-      border-right: 1px solid #e6e6e6; background: #fafafa;
+    :root{
+      --bg: #ffffff;
+      --ink: #031366;
+      --muted: #e5e5e5;
+      --teal: #00a39e;
+      --orange: #f55426;
+      --yellow: #f7bf29;
+      --magenta: #f529a6;
+      --radius: 14px;
+      --shadow: 0 10px 24px rgba(3,19,102,.08);
     }
-    h1 { font-size: 16px; margin-bottom: 12px; }
-    label { font-size: 12px; color: #444; display: block; margin-top: 10px; }
-    input, textarea, button {
-      width: 100%; padding: 10px; font-size: 14px;
-      border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--ink);
+      background: #f7f8ff;
     }
-    textarea { min-height: 120px; }
-    textarea:disabled { background: #eee; color: #777; }
-    button {
-      background: #111; color: #fff; font-weight: 600;
-      margin-top: 12px; cursor: pointer;
-    }
-    .small { font-size: 12px; color: #666; }
-    .stats { font-size: 13px; margin-top: 10px; }
-    .error { color: #b00020; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+    .wrap{ display:flex; height:100vh; width:100%; }
 
-    .dropzone {
-      margin-top: 8px;
-      padding: 14px;
-      border: 2px dashed #bbb;
-      border-radius: 8px;
-      text-align: center;
+    /* Sidebar */
+    .sidebar{
+      width: 390px;
+      background: var(--bg);
+      border-right: 1px solid var(--muted);
+      padding: 16px;
+      overflow-y:auto;
+    }
+    .brand{
+      display:flex; align-items:center; gap:12px;
+      padding: 10px 10px 14px;
+      border-bottom: 1px solid var(--muted);
+      margin-bottom: 14px;
+    }
+    .brand img{ height: 36px; width:auto; display:block; }
+    .brand .title{ display:flex; flex-direction:column; line-height:1.15; }
+    .brand .title strong{ font-size: 14px; letter-spacing:.2px; }
+    .brand .title span{ font-size: 12px; color: rgba(3,19,102,.70); }
+
+    /* Stage sections with progress rail */
+    .stage{
+      position: relative;
       background: #fff;
-      font-size: 12px;
-      color: #555;
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 14px 14px 18px;
+      margin-bottom: 12px;
+      overflow:hidden;
     }
-    .dropzone.dragover {
-      border-color: #111;
-      background: #f0f0f0;
+    .stage::before{
+      content:"";
+      position:absolute;
+      left:0; top:0; bottom:0;
+      width: 6px;
+      background: var(--teal);
+    }
+    .stage.stage2::before{ background: var(--orange); }
+    .stage.stage3::before{ background: var(--yellow); }
+
+    .sectionHeader{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+    h2{ font-size: 13px; margin:0; letter-spacing:.2px; }
+    .badge{
+      font-size: 11px; font-weight: 800;
+      color: var(--ink);
+      background: rgba(3,19,102,.06);
+      border: 1px solid rgba(3,19,102,.10);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .hint{
+      font-size: 12px;
+      color: rgba(3,19,102,.72);
+      margin-top: 6px;
+      line-height: 1.35;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
+    label{
+      font-size: 12px;
+      font-weight: 700;
+      display:block;
+      margin: 10px 0 6px;
+    }
+    input, textarea, select{
+      width:100%;
+      border: 1px solid var(--muted);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea{ min-height: 160px; resize: vertical; }
+    input:focus, textarea:focus, select:focus{
+      border-color: rgba(0,163,158,.55);
+      box-shadow: 0 0 0 4px rgba(0,163,158,.12);
+    }
+
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items:end; }
+
+    .actions{ display:flex; gap:10px; margin-top: 12px; }
+    .btn{
+      border: 1px solid rgba(3,19,102,.16);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 800;
+      cursor:pointer;
+      touch-action: manipulation;
+      transition: transform .02s ease, box-shadow .15s ease, opacity .15s ease;
+      user-select:none;
+    }
+    .btnPrimary{
+      background: var(--ink);
+      color:#fff;
+      border-color: var(--ink);
+      flex: 1;
+      box-shadow: 0 10px 18px rgba(3,19,102,.18);
+    }
+    .btnPrimary:active{ transform: translateY(1px); }
+    .btnGhost{ background:#fff; color: var(--ink); }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+    .dropzone{
+      border: 1.5px dashed rgba(3,19,102,.25);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(0,163,158,.06);
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+    }
+    .dropzone.dragover{
+      border-color: var(--teal);
+      background: rgba(0,163,158,.12);
+      box-shadow: 0 0 0 4px rgba(0,163,158,.12) inset;
+    }
+    .dzTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .dzTop strong{ font-size: 13px; }
+    .dzTop .small{ font-size: 12px; color: rgba(3,19,102,.70); }
+    .fileBtn{
+      display:inline-block;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid rgba(3,19,102,.16);
+      font-weight: 800;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .stat{
+      border:1px solid var(--muted);
+      border-radius: 14px;
+      padding: 10px 10px;
+      background: #fff;
+    }
+    .stat .k{ font-size: 11px; color: rgba(3,19,102,.70); }
+    .stat .v{ font-size: 16px; font-weight: 900; margin-top: 4px; }
+
+    .error{
       margin-top: 10px;
       font-size: 12px;
+      color: #cf1c45;
+      white-space: pre-wrap;
     }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 6px;
-      text-align: left;
+
+    .chipRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+    .chip{
+      font-size: 12px;
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(3,19,102,.12);
+      background: rgba(3,19,102,.04);
+      color: rgba(3,19,102,.85);
     }
-    th { background: #f0f0f0; }
 
-    #map { flex: 1; }
+    /* Map */
+    #map{ flex: 1; height: 100vh; }
 
-    @media (max-width: 900px) {
-      .wrap { flex-direction: column; }
-      .panel { width: 100%; border-right: none; border-bottom: 1px solid #e6e6e6; }
-      #map { height: 60vh; }
+    @media (max-width: 900px){
+      .wrap{ flex-direction: column; }
+      .sidebar{ width: 100%; border-right:none; border-bottom: 1px solid var(--muted); }
+      #map{ height: 60vh; }
     }
   </style>
 </head>
 
 <body>
 <div class="wrap">
-  <div class="panel">
-    <h1>Digital Inclusion Hub Mapper</h1>
-
-    <label>Central postcode</label>
-    <input id="centre" placeholder="E1 6AN">
-
-    <label>Centre name</label>
-    <input id="centreName" placeholder="e.g. Birmingham City Centre">
-
-    <label>Manual hub entry</label>
-    <textarea id="hubs" placeholder="Hub name, postcode"></textarea>
-    <div class="small">Format: <strong>name, postcode</strong> (one per line)</div>
-
-    <label>Or upload hubs CSV</label>
-    <input type="file" id="hubFile" accept=".csv">
-    <div class="dropzone" id="dropzone">Or drag & drop CSV here</div>
-    <div class="small" id="csvStatus">CSV: no headers · Column A = name · Column B = postcode</div>
-
-    <label>Radius (km)</label>
-    <input id="radius" type="number" value="5" step="0.1">
-
-    <button onclick="run()">Map hubs</button>
-
-    <div class="stats">
-      Inside radius: <span id="inCount">0</span><br>
-      Outside radius: <span id="outCount">0</span><br>
-      Total mapped: <span id="totalCount">0</span>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="./gtf-logo-full.png" alt="Good Things Foundation logo">
+      <div class="title">
+        <strong>NDIN Mapping</strong>
+        <span>Postcode-based hub visualiser</span>
+      </div>
     </div>
 
-    <button id="exportBtn" style="display:none;">Export results CSV</button>
+    <!-- Stage 1 -->
+    <section class="stage stage1">
+      <div class="sectionHeader">
+        <h2>Stage 1 — Central location</h2>
+        <span class="badge">1</span>
+      </div>
 
-    <div id="preview"></div>
-    <div class="error" id="err"></div>
-  </div>
+      <label for="centre">Central postcode</label>
+      <input id="centre" placeholder="e.g. E1 6AN" autocapitalize="characters">
+
+      <label for="centreName">Centre name (optional)</label>
+      <input id="centreName" placeholder="e.g. Birmingham City Centre">
+
+      <div class="hint">We’ll use this as the anchor point for the radius ring and distance calculations.</div>
+    </section>
+
+    <!-- Stage 2 -->
+    <section class="stage stage2">
+      <div class="sectionHeader">
+        <h2>Stage 2 — Hubs to map</h2>
+        <span class="badge">2</span>
+      </div>
+
+      <div id="dropzone" class="dropzone">
+        <div class="dzTop">
+          <div>
+            <strong>Upload CSV</strong>
+            <div class="small">Drag & drop, or tap to choose</div>
+          </div>
+          <label class="fileBtn">
+            Choose file
+            <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none;">
+          </label>
+        </div>
+
+        <div class="hint">
+          Expected columns: <strong>postcode</strong> and <strong>name</strong>.
+          Example header: <code>postcode,name</code>
+        </div>
+      </div>
+
+      <div class="chipRow">
+        <span class="chip">CSV → auto-fills manual list</span>
+        <span class="chip">Format: postcode | name</span>
+      </div>
+
+      <label for="hubs">Or paste manually (one per line)</label>
+      <textarea id="hubs" autocapitalize="characters" placeholder="SW1A 1AA | Westminster Hub
+EC1A 1BB | City Advice Centre"></textarea>
+
+      <div class="hint">If you paste only postcodes, the name will default to the postcode.</div>
+    </section>
+
+    <!-- Stage 3 -->
+    <section class="stage stage3">
+      <div class="sectionHeader">
+        <h2>Stage 3 — Parameters</h2>
+        <span class="badge">3</span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="radius">Radius (km)</label>
+          <input id="radius" type="number" value="5" step="0.1" min="0.1">
+        </div>
+
+        <div>
+          <label for="ringPreset">Ring colour</label>
+          <select id="ringPreset">
+            <option value="#00a39e" selected>Teal</option>
+            <option value="#f55426">Orange</option>
+            <option value="#031366">Ink</option>
+            <option value="#f529a6">Magenta</option>
+            <option value="#f7bf29">Yellow</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="customColorWrap" style="display:none; margin-top:10px;">
+        <label for="ringColor">Custom colour</label>
+        <input id="ringColor" type="color" value="#00a39e" style="padding:6px; height:42px;">
+      </div>
+
+      <div class="actions">
+        <button id="runBtn" class="btn btnPrimary" type="button" onclick="run()">Map hubs</button>
+        <button class="btn btnGhost" type="button" onclick="clearAll()">Clear</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="k">Inside radius</div>
+          <div class="v" id="inCount">0</div>
+        </div>
+        <div class="stat">
+          <div class="k">Outside radius</div>
+          <div class="v" id="outCount">0</div>
+        </div>
+        <div class="stat">
+          <div class="k">Total mapped</div>
+          <div class="v" id="totalCount">0</div>
+        </div>
+      </div>
+
+      <div class="error" id="err"></div>
+    </section>
+
+    <div class="hint" style="padding: 0 4px 10px;">
+      Basemap: CARTO Positron · Geocoding: postcodes.io · Hosted via GitHub Pages
+    </div>
+  </aside>
 
   <div id="map"></div>
 </div>
 
 <script>
+  // --- Map setup ---
   const map = L.map("map").setView([51.5074, -0.1278], 11);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}" +
-    (L.Browser.retina ? "@2x.png" : ".png"),
-    { subdomains: "abcd", maxZoom: 20 }
+
+  // Minimal basemap (CARTO Positron)
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}" + (L.Browser.retina ? "@2x.png" : ".png"),
+    {
+      subdomains: "abcd",
+      maxZoom: 20,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+        '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }
   ).addTo(map);
 
   const layerGroup = L.layerGroup().addTo(map);
-  let radiusCircle, exportRows = [];
+  let radiusCircle;
 
+  function norm(pc) {
+    return (pc || "").trim().toUpperCase().replace(/\s+/g, "");
+  }
+
+  // Hub icon (gtf-logo.png should exist alongside index.html)
   const HUB_ICON = L.icon({
     iconUrl: "./gtf-logo.png",
-    iconSize: [22,22],
-    iconAnchor: [11,11]
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -10]
   });
 
-  const norm = pc => (pc||"").trim().toUpperCase().replace(/\s+/g,"");
+  function setError(msg){ document.getElementById("err").textContent = msg || ""; }
+  function setCounts(i,o,t){
+    document.getElementById("inCount").textContent = i;
+    document.getElementById("outCount").textContent = o;
+    document.getElementById("totalCount").textContent = t;
+  }
 
-  function parseCSV(text) {
-    return text.split(/\r?\n/).filter(Boolean).map((l,i)=>{
-      const c=l.split(",").map(x=>x.trim());
-      if(c.length<2) throw `CSV error line ${i+1}`;
-      return {name:c[0], postcode:norm(c[1])};
+  function clearAll(){
+    setError("");
+    layerGroup.clearLayers();
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+    setCounts(0,0,0);
+  }
+
+  // Haversine distance in km
+  function distanceKm(aLat, aLon, bLat, bLon) {
+    const R = 6371;
+    const dLat = (bLat - aLat) * Math.PI / 180;
+    const dLon = (bLon - aLon) * Math.PI / 180;
+    const lat1 = aLat * Math.PI / 180;
+    const lat2 = bLat * Math.PI / 180;
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  async function geocodeSingle(pc) {
+    const r = await fetch("https://api.postcodes.io/postcodes/" + encodeURIComponent(pc));
+    const j = await r.json();
+    if (!j.result) throw new Error("Invalid centre postcode");
+    return j.result;
+  }
+
+  async function geocodeBulk(list) {
+    const r = await fetch("https://api.postcodes.io/postcodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postcodes: list })
     });
+    const j = await r.json();
+    if (!j.result) throw new Error("Bulk lookup failed");
+    // Keeps only successful results; if failures matter, we can make pairing robust.
+    return j.result.filter(x => x.result).map(x => x.result);
   }
 
-  function preview(hubs, source) {
-    const rows = hubs.slice(0,5).map(h =>
-      `<tr><td>${h.name}</td><td>${h.postcode}</td></tr>`).join("");
-    document.getElementById("preview").innerHTML = `
-      <div class="small">Preview (${source}, first ${Math.min(5,hubs.length)} rows)</div>
-      <table><tr><th>Name</th><th>Postcode</th></tr>${rows}</table>`;
+  // --- Ring colour preset logic ---
+  const ringPreset = document.getElementById("ringPreset");
+  const customColorWrap = document.getElementById("customColorWrap");
+  const ringColorInput = document.getElementById("ringColor");
+
+  function getRingColor(){
+    const preset = ringPreset.value;
+    if (preset === "custom") return ringColorInput.value || "#00a39e";
+    return preset || "#00a39e";
   }
 
-  function distanceKm(aLat,aLon,bLat,bLon){
-    const R=6371,dLat=(bLat-aLat)*Math.PI/180,dLon=(bLon-aLon)*Math.PI/180;
-    const h=Math.sin(dLat/2)**2+Math.cos(aLat*Math.PI/180)*Math.cos(bLat*Math.PI/180)*Math.sin(dLon/2)**2;
-    return 2*R*Math.asin(Math.sqrt(h));
+  ringPreset.addEventListener("change", () => {
+    const isCustom = ringPreset.value === "custom";
+    customColorWrap.style.display = isCustom ? "block" : "none";
+    if (!isCustom) ringColorInput.value = ringPreset.value;
+  });
+
+  // --- CSV upload / drag & drop ---
+  const dropzone = document.getElementById("dropzone");
+  const csvFile = document.getElementById("csvFile");
+  const hubsTextarea = document.getElementById("hubs");
+
+  function parseCSV(text){
+    // Minimal CSV parser: handles commas + quoted fields.
+    const rows = [];
+    let row = [], cur = "", inQuotes = false;
+    for (let i=0; i<text.length; i++){
+      const ch = text[i];
+      const next = text[i+1];
+
+      if (ch === '"' ){
+        if (inQuotes && next === '"'){ cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes){
+        row.push(cur); cur = "";
+      } else if ((ch === "\n" || ch === "\r") && !inQuotes){
+        if (ch === "\r" && next === "\n") i++;
+        row.push(cur); rows.push(row);
+        row = []; cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur.length || row.length){ row.push(cur); rows.push(row); }
+    return rows;
   }
 
+  function hubsToTextarea(hubs){
+    const lines = hubs.map(h => `${h.postcode} | ${h.name}`);
+    hubsTextarea.value = lines.join("\n");
+  }
+
+  async function handleFile(file){
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCSV(text).filter(r => r.some(c => (c || "").trim().length));
+    if (!rows.length) { setError("CSV appears empty."); return; }
+
+    const header = rows[0].map(c => (c || "").trim().toLowerCase());
+    const hasHeader = header.includes("postcode") || header.includes("post code") || header.includes("name");
+
+    let start = 0;
+    let postcodeIdx = 0, nameIdx = 1;
+
+    if (hasHeader){
+      start = 1;
+      postcodeIdx = header.findIndex(h => h === "postcode" || h === "post code" || h === "post_code");
+      nameIdx = header.findIndex(h => h === "name" || h === "hub" || h === "hub name");
+      if (postcodeIdx === -1) postcodeIdx = 0;
+      if (nameIdx === -1) nameIdx = 1;
+    }
+
+    const hubs = [];
+    for (let i=start; i<rows.length; i++){
+      const pcRaw = rows[i][postcodeIdx] || "";
+      const nameRaw = rows[i][nameIdx] || "";
+      const postcode = norm(pcRaw);
+      const name = (nameRaw || "").trim() || postcode;
+      if (postcode) hubs.push({postcode, name});
+    }
+
+    if (!hubs.length){ setError("Couldn’t find any postcodes in that CSV."); return; }
+    setError("");
+    hubsToTextarea(hubs);
+  }
+
+  csvFile.addEventListener("change", async (e) => {
+    await handleFile(e.target.files?.[0]);
+    csvFile.value = "";
+  });
+
+  ["dragenter","dragover"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add("dragover");
+    });
+  });
+  ["dragleave","drop"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.remove("dragover");
+    });
+  });
+  dropzone.addEventListener("drop", async (e) => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await handleFile(file);
+  });
+
+  // --- Main run ---
   async function run() {
-    document.getElementById("err").textContent="";
-    layerGroup.clearLayers(); exportRows=[];
-    if(radiusCircle) map.removeLayer(radiusCircle);
+    setError("");
+    const runBtn = document.getElementById("runBtn");
+    runBtn.disabled = true;
+
+    layerGroup.clearLayers();
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
 
     try {
-      const centrePc = norm(centre.value);
-      const centreName = centreNameInput.value || "Centre";
-      const radiusKm = +radius.value;
+      const centrePc = norm(document.getElementById("centre").value);
+      const centreName = document.getElementById("centreName")?.value?.trim() || "Centre";
+      const radiusKm = Number(document.getElementById("radius").value);
+      const ringColor = getRingColor();
 
-      let hubs=[];
-      if(hubFile.files.length){
-        hubs=parseCSV(await hubFile.files[0].text());
-        hubsTextarea.disabled=true;
-        preview(hubs,"CSV");
-      } else {
-        hubs=hubsTextarea.value.split(/\r?\n/).filter(Boolean).map((l,i)=>{
-          const p=l.split(",").map(x=>x.trim());
-          if(p.length<2) throw `Manual entry error line ${i+1}`;
-          return {name:p[0],postcode:norm(p[1])};
-        });
-        preview(hubs,"Manual");
-      }
+      const hubLines = hubsTextarea.value
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(Boolean);
 
-      if(!centrePc||!hubs.length) throw "Missing centre or hubs";
+      const hubs = hubLines.map(line => {
+        const parts = line.split("|").map(p => p.trim());
+        const postcode = norm(parts[0] || "");
+        const name = parts[1] || postcode;
+        return { postcode, name };
+      }).filter(h => h.postcode);
 
-      const centreRes = await fetch(`https://api.postcodes.io/postcodes/${centrePc}`).then(r=>r.json());
-      const c=centreRes.result;
-      const hubRes = await fetch("https://api.postcodes.io/postcodes",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({postcodes:hubs.map(h=>h.postcode)})
-      }).then(r=>r.json());
+      if (!centrePc) throw new Error("Enter a central postcode.");
+      if (!hubs.length) throw new Error("Add at least one hub (CSV upload or manual entry).");
+      if (!Number.isFinite(radiusKm) || radiusKm <= 0) throw new Error("Radius must be a positive number (km).");
 
-      const cLL=[c.latitude,c.longitude];
-      L.marker(cLL).addTo(layerGroup).bindTooltip(centreName).bindPopup(`<strong>${centreName}</strong>`);
-      radiusCircle=L.circle(cLL,{radius:radiusKm*1000,fill:false}).addTo(map);
+      const centre = await geocodeSingle(centrePc);
+      const hubResults = await geocodeBulk(hubs.map(h => h.postcode));
 
-      let inside=0,outside=0,bounds=[cLL];
+      const cLatLng = [centre.latitude, centre.longitude];
 
-      hubRes.result.forEach((r,i)=>{
-        if(!r.result) return;
-        const h=r.result,meta=hubs[i];
-        const d=distanceKm(c.latitude,c.longitude,h.latitude,h.longitude);
-        const ll=[h.latitude,h.longitude];
+      L.marker(cLatLng)
+        .addTo(layerGroup)
+        .bindPopup(`<strong>${centreName}</strong>`)
+        .bindTooltip(centreName, { permanent:false, direction:"top", offset:[0,-8] })
+        .openPopup();
+
+      radiusCircle = L.circle(cLatLng, {
+        radius: radiusKm * 1000,
+        fill: false,
+        color: ringColor,
+        weight: 2
+      }).addTo(map);
+
+      let inside = 0, outside = 0;
+      const bounds = [cLatLng];
+
+      hubResults.forEach((h, i) => {
+        const hubMeta = hubs[i];
+        const d = distanceKm(centre.latitude, centre.longitude, h.latitude, h.longitude);
+        const ll = [h.latitude, h.longitude];
         bounds.push(ll);
-        const inRad=d<=radiusKm;
-        inRad?inside++:outside++;
-        exportRows.push([meta.name,meta.postcode,d.toFixed(2),inRad?"yes":"no"].join(","));
-        L.marker(ll,{icon:HUB_ICON}).addTo(layerGroup)
-          .bindTooltip(meta.name,{sticky:true})
-          .bindPopup(`<strong>${meta.name}</strong>`);
+
+        if (d <= radiusKm) inside++; else outside++;
+
+        const marker = L.marker(ll, { icon: HUB_ICON }).addTo(layerGroup);
+        marker.bindTooltip(hubMeta?.name || "Hub", { direction:"top", offset:[0,-6], opacity:0.95, sticky:true });
+        marker.bindPopup(`<strong>${hubMeta?.name || "Hub"}</strong>`);
       });
 
-      map.fitBounds(bounds,{padding:[30,30]});
-      inCount.textContent=inside;
-      outCount.textContent=outside;
-      totalCount.textContent=inside+outside;
-      exportBtn.style.display="block";
+      map.fitBounds(bounds, { padding: [30, 30] });
+      setCounts(inside, outside, hubResults.length);
 
-    } catch(e){
-      err.textContent=e;
+    } catch (e) {
+      setError(e?.message || String(e));
+      setCounts(0,0,0);
+    } finally {
+      runBtn.disabled = false;
     }
   }
-
-  exportBtn.onclick=()=>{
-    const csv=["name,postcode,distance_km,inside_radius",...exportRows].join("\n");
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download="hub-radius-results.csv";
-    a.click();
-  };
-
-  const dz=document.getElementById("dropzone");
-  dz.ondragover=e=>{e.preventDefault();dz.classList.add("dragover");};
-  dz.ondragleave=()=>dz.classList.remove("dragover");
-  dz.ondrop=e=>{
-    e.preventDefault();dz.classList.remove("dragover");
-    hubFile.files=e.dataTransfer.files;
-    csvStatus.textContent=`Using CSV: ${hubFile.files[0].name}`;
-    hubsTextarea.disabled=true;
-  };
 </script>
 </body>
 </html>

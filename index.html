@@ -331,6 +331,16 @@
       #map{ height: 60vh; }
       .manualHead, .manualGrid{ grid-template-columns: 1fr 120px; }
     }
+
+    .fileInput{
+      position: absolute;
+      left: -9999px;  /* off-screen, but still "present" for iOS */
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+    }
+
+    
   </style>
 </head>
 
@@ -381,10 +391,9 @@
               <strong>Upload a spreadsheet</strong>
               <div class="small">Drag & drop, or tap to choose</div>
             </div>
-            <label class="fileBtn">
-              Choose file
-              <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,text/tab-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;">
-            </label>
+            <button id="chooseFileBtn" class="fileBtn" type="button">Choose file</button>
+            <input id="fileInput" class="fileInput" type="file"
+              accept=".xlsx,.xls,.csv,.tsv,.txt,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values">
           </div>
 
           <div class="hint">
@@ -483,6 +492,10 @@
 </div>
 
 <script>
+  const chooseFileBtn = document.getElementById("chooseFileBtn");
+  chooseFileBtn.addEventListener("click", () => fileInput.click());
+
+  
   // --- Map setup ---
   const map = L.map("map").setView([51.5074, -0.1278], 11);
 

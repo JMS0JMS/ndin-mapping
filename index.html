@@ -12,6 +12,11 @@
   <!-- SheetJS (optional: XLSX/XLS parsing). CSV will work even if this fails. -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
+  <!-- Font: Rubik -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
   <style>
     :root{
       /* Palette */
@@ -43,7 +48,10 @@
       line-height: var(--lh);
       color: var(--ink);
       background: #f7f8ff;
+
+      /* Brand font */
       font-family: "Rubik", Helvetica, Arial, sans-serif;
+
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -56,7 +64,7 @@
       overflow:hidden;
     }
 
-    /* Sidebar (retractable) */
+    /* Sidebar (retractable, but never disappears completely) */
     aside.sidebar{
       width: 410px;
       min-width: 320px;
@@ -69,12 +77,17 @@
       z-index: 2;
     }
 
+    /* Collapsed: keep a slim "rail" so toggle stays reachable */
     body.sidebarCollapsed aside.sidebar{
-      width: 0;
-      min-width: 0;
-      padding: 0;
-      border-right: 0;
+      width: 58px;
+      min-width: 58px;
+      padding: 14px 8px;
       overflow: hidden;
+    }
+
+    /* Hide content (but keep toggle) */
+    body.sidebarCollapsed .sidebarInner{
+      display:none;
     }
 
     /* Toggle button (VERY visible) */
@@ -103,9 +116,10 @@
       box-shadow: var(--shadow2), var(--focus);
     }
 
+    /* When collapsed, keep toggle positioned nicely */
     body.sidebarCollapsed .sidebarToggle{
-      left: 14px;                  /* moves onto map */
-      right: auto;
+      right: -18px;
+      left: auto;
       top: 14px;
     }
 
@@ -149,6 +163,22 @@
     }
     .step.step2::before{ background: var(--orange); }
     .step.step3::before{ background: var(--yellow); }
+
+    /* Locked steps (greyed out + unclickable) */
+    .step.locked{
+      opacity: .55;
+      filter: grayscale(.15);
+    }
+    .step.locked::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: rgba(255,255,255,.35);
+      pointer-events:auto; /* blocks interactions */
+    }
+    .step.locked .statusPill{
+      background: rgba(3,19,102,.06);
+    }
 
     .sectionHeader{
       display:flex;
@@ -226,6 +256,11 @@
       box-shadow: 0 0 0 4px rgba(207,28,69,.12);
     }
 
+    /* Postcode inputs: always show caps */
+    .postcodeInput{
+      text-transform: uppercase;
+    }
+
     .hint{
       font-size: 14px;
       color: rgba(3,19,102,.80);
@@ -285,6 +320,34 @@
       border-radius: 10px;
       font-size: 13px;
       min-height: 40px;
+    }
+
+    /* Full-width helper (for Step 3 button cleanliness) */
+    .btnFull{
+      width: 100%;
+      flex: 1 1 100%;
+    }
+
+    /* Make a row of equal-width full buttons */
+    .actionsEqual{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .actionsEqual .btn{
+      width:100%;
+    }
+
+    /* Step navigation */
+    .stepNav{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top: 12px;
+    }
+    .stepNav .btn{
+      width:100%;
     }
 
     /* Tabs */
@@ -500,25 +563,28 @@
         border-right:none;
         border-bottom: 1px solid var(--muted);
       }
+
+      /* On mobile, keep sidebar visible (collapse becomes a compact header rail) */
       body.sidebarCollapsed aside.sidebar{
         width: 100%;
         min-width: 100%;
-        padding: 12px;
+        padding: 10px 12px;
         border-bottom: 1px solid var(--muted);
       }
-      body.sidebarCollapsed .brand,
-      body.sidebarCollapsed .step,
-      body.sidebarCollapsed .hint,
-      body.sidebarCollapsed .microHint{
-        display:block;
+      body.sidebarCollapsed .sidebarInner{
+        display:none;
       }
+
       .sidebarToggle{
         right: 14px;
         left: auto;
         top: 14px;
       }
+
       #map{ height: 60vh; }
       .manualHead, .manualGridRow{ grid-template-columns: 36px 1fr 120px 40px; }
+      .actionsEqual{ grid-template-columns: 1fr; } /* stack on small screens */
+      .stepNav{ grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -528,159 +594,180 @@
   <aside class="sidebar" id="sidebar">
     <button id="toggleSidebar" class="sidebarToggle" type="button" aria-label="Hide sidebar" title="Hide sidebar">‹</button>
 
-    <div class="brand">
-      <img src="./gtf-logo-full.png" alt="Good Things Foundation logo">
-      <div class="title">
-        <strong>National Digital Inclusion Network Mapping</strong>
-        <span>Postcode-based hub visualiser</span>
-      </div>
-    </div>
-
-    <!-- Step 1 -->
-    <section class="step step1">
-      <div class="sectionHeader">
-        <h2>Step 1 — Central location</h2>
-        <span class="badge">1</span>
-      </div>
-
-      <label for="centre">Central postcode</label>
-      <input id="centre" placeholder="e.g. E1 6AN" autocapitalize="characters">
-
-      <label for="centreName">Centre name (optional)</label>
-      <input id="centreName" placeholder="e.g. Birmingham City Centre">
-
-      <div class="hint">We’ll use this as the anchor point for the radius ring and distance calculations.</div>
-    </section>
-
-    <!-- Step 2 -->
-    <section class="step step2">
-      <div class="sectionHeader">
-        <h2>Step 2 — Hubs to map</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <span id="dataStatus" class="statusPill warn">No hubs loaded</span>
-          <span class="badge">2</span>
+    <div class="sidebarInner">
+      <div class="brand">
+        <img src="./gtf-logo-full.png" alt="Good Things Foundation logo">
+        <div class="title">
+          <strong>National Digital Inclusion Network Mapping</strong>
+          <span>Postcode-based hub visualiser</span>
         </div>
       </div>
 
-      <div class="tabs" role="tablist" aria-label="Hub input method">
-        <button id="tabBulk" class="tab active" type="button" role="tab" aria-selected="true">Bulk Upload</button>
-        <button id="tabManual" class="tab" type="button" role="tab" aria-selected="false">Manual Input</button>
-      </div>
+      <!-- Step 1 -->
+      <section class="step step1" id="step1">
+        <div class="sectionHeader">
+          <h2>Step 1 — Central location</h2>
+          <span class="badge">1</span>
+        </div>
 
-      <!-- Bulk panel -->
-      <div id="panelBulk">
-        <div id="dropzone" class="dropzone">
-          <div class="dzTop">
-            <div>
-              <strong>Upload a file</strong>
-              <div class="small">CSV recommended · XLSX supported (if library loads)</div>
+        <label for="centre">Central postcode</label>
+        <input id="centre" class="postcodeInput" placeholder="e.g. E1 6AN" autocapitalize="characters" inputmode="text">
+
+        <label for="centreName">Centre name (optional)</label>
+        <input id="centreName" placeholder="e.g. Birmingham City Centre">
+
+        <div class="hint">We’ll use this as the anchor point for the radius ring and distance calculations.</div>
+
+        <!-- Step 1 nav -->
+        <div class="stepNav">
+          <button id="toStep2Btn" class="btn btnPrimary" type="button" disabled>Next</button>
+          <button class="btn" type="button" disabled aria-disabled="true" title="Complete Step 1 first">Previous</button>
+        </div>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="step step2 locked" id="step2" aria-disabled="true">
+        <div class="sectionHeader">
+          <h2>Step 2 — Hubs to map</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="dataStatus" class="statusPill warn">No hubs loaded</span>
+            <span class="badge">2</span>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Hub input method">
+          <button id="tabBulk" class="tab active" type="button" role="tab" aria-selected="true">Bulk Upload</button>
+          <button id="tabManual" class="tab" type="button" role="tab" aria-selected="false">Manual Input</button>
+        </div>
+
+        <!-- Bulk panel -->
+        <div id="panelBulk">
+          <div id="dropzone" class="dropzone">
+            <div class="dzTop">
+              <div>
+                <strong>Upload a file</strong>
+                <div class="small">CSV recommended · XLSX supported (if library loads)</div>
+              </div>
+
+              <button id="chooseFileBtn" class="fileBtn" type="button">Choose file</button>
+              <input id="fileInput" class="fileInput" type="file"
+                accept=".xlsx,.xls,.csv,.tsv,.txt,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values">
             </div>
 
-            <button id="chooseFileBtn" class="fileBtn" type="button">Choose file</button>
-            <input id="fileInput" class="fileInput" type="file"
-              accept=".xlsx,.xls,.csv,.tsv,.txt,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values">
+            <div class="hint">
+              Required format: <strong>two columns, no headers</strong><br>
+              Column A = <strong>Hub Name</strong>, Column B = <strong>Postcode</strong>
+            </div>
+
+            <div class="actions" style="margin-top:8px;">
+              <button id="templateBtn" class="btn btnSmall" type="button">Download CSV template</button>
+              <button id="clearUploadBtn" class="btn btnSmall" type="button">Clear upload</button>
+            </div>
+
+            <div class="uploadStatus" id="uploadStatus">No file loaded yet.</div>
           </div>
 
-          <div class="hint">
-            Required format: <strong>two columns, no headers</strong><br>
-            Column A = <strong>Hub Name</strong>, Column B = <strong>Postcode</strong>
+          <div class="microHint" style="margin-top:10px;">
+            Tip: once mapped, <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub to see its name.
+          </div>
+        </div>
+
+        <!-- Manual panel -->
+        <div id="panelManual" style="display:none; margin-top:10px;">
+          <div class="hint">Add hubs manually below. Use <strong>Add row</strong> to insert more lines.</div>
+
+          <div class="manualWrap">
+            <div class="manualHead">
+              <div>#</div>
+              <div>Hub name</div>
+              <div>Postcode</div>
+              <div></div>
+            </div>
+            <div id="manualRows"></div>
           </div>
 
-          <div class="actions" style="margin-top:8px;">
-            <button id="templateBtn" class="btn btnSmall" type="button">Download CSV template</button>
-            <button id="clearUploadBtn" class="btn btnSmall" type="button">Clear upload</button>
+          <div class="actions" style="margin-top:10px;">
+            <button id="addRowBtn" class="btn btnSmall" type="button">Add row</button>
+            <button id="clearManualBtn" class="btn btnSmall" type="button">Clear manual</button>
           </div>
 
-          <div class="uploadStatus" id="uploadStatus">No file loaded yet.</div>
-        </div>
-
-        <div class="microHint" style="margin-top:10px;">
-          Tip: once mapped, <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub to see its name.
-        </div>
-      </div>
-
-      <!-- Manual panel -->
-      <div id="panelManual" style="display:none; margin-top:10px;">
-        <div class="hint">Add hubs manually below. Use <strong>Add row</strong> to insert more lines.</div>
-
-        <div class="manualWrap">
-          <div class="manualHead">
-            <div>#</div>
-            <div>Hub name</div>
-            <div>Postcode</div>
-            <div></div>
+          <div class="microHint">
+            Tip: once mapped, <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub to see its name.
           </div>
-          <div id="manualRows"></div>
         </div>
 
-        <div class="actions" style="margin-top:10px;">
-          <button id="addRowBtn" class="btn btnSmall" type="button">Add row</button>
-          <button id="clearManualBtn" class="btn btnSmall" type="button">Clear manual</button>
+        <!-- Step 2 nav -->
+        <div class="stepNav">
+          <button id="backToStep1Btn" class="btn" type="button">Previous</button>
+          <button id="toStep3Btn" class="btn btnPrimary" type="button" disabled>Next</button>
+        </div>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="step step3 locked" id="step3" aria-disabled="true">
+        <div class="sectionHeader">
+          <h2>Step 3 — Parameters</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="readyStatus" class="statusPill warn">Not ready</span>
+            <span class="badge">3</span>
+          </div>
         </div>
 
-        <div class="microHint">
-          Tip: once mapped, <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub to see its name.
-        </div>
-      </div>
-    </section>
+        <div class="row">
+          <div>
+            <label for="radius">Radius (km)</label>
+            <input id="radius" type="number" value="5" step="0.1" min="0.1">
+          </div>
 
-    <!-- Step 3 -->
-    <section class="step step3">
-      <div class="sectionHeader">
-        <h2>Step 3 — Parameters</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <span id="readyStatus" class="statusPill warn">Not ready</span>
-          <span class="badge">3</span>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label for="radius">Radius (km)</label>
-          <input id="radius" type="number" value="5" step="0.1" min="0.1">
+          <div>
+            <label for="ringPreset">Ring colour</label>
+            <select id="ringPreset">
+              <option value="#00a39e" selected>Teal</option>
+              <option value="#f55426">Orange</option>
+              <option value="#031366">Ink</option>
+              <option value="#f529a6">Magenta</option>
+              <option value="#f7bf29">Yellow</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
         </div>
 
-        <div>
-          <label for="ringPreset">Ring colour</label>
-          <select id="ringPreset">
-            <option value="#00a39e" selected>Teal</option>
-            <option value="#f55426">Orange</option>
-            <option value="#031366">Ink</option>
-            <option value="#f529a6">Magenta</option>
-            <option value="#f7bf29">Yellow</option>
-            <option value="custom">Custom…</option>
-          </select>
+        <div id="customColorWrap" style="display:none; margin-top:10px;">
+          <label for="ringColor">Custom colour</label>
+          <input id="ringColor" type="color" value="#00a39e" style="padding:6px; height:42px;">
         </div>
+
+        <div class="actions">
+          <button id="runBtn" class="btn btnPrimary" type="button" disabled>Map hubs</button>
+          <button id="clearAllBtn" class="btn" type="button">Clear</button>
+        </div>
+
+        <!-- Equal width + full width buttons -->
+        <div class="actionsEqual">
+          <button id="fitRingBtn" class="btn btnSmall" type="button">Fit radius</button>
+          <button id="fitAllBtn" class="btn btnSmall" type="button">Fit all hubs</button>
+          <button id="resetViewBtn" class="btn btnSmall" type="button">Reset view</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><div class="k">Inside radius</div><div class="v" id="inCount">0</div></div>
+          <div class="stat"><div class="k">Outside radius</div><div class="v" id="outCount">0</div></div>
+          <div class="stat"><div class="k">Mapped</div><div class="v" id="totalCount">0</div></div>
+        </div>
+
+        <div class="error" id="err"></div>
+        <div class="hint">On the map: <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub icon to see the hub name.</div>
+
+        <!-- Step 3 nav -->
+        <div class="stepNav">
+          <button id="backToStep2Btn" class="btn" type="button">Previous</button>
+          <button class="btn btnPrimary" type="button" disabled aria-disabled="true" title="You’re at the final step">Next</button>
+        </div>
+      </section>
+
+      <div class="microHint" style="padding: 0 4px 10px;">
+        Basemap: CARTO Positron · Geocoding: postcodes.io · Hosted via GitHub Pages
       </div>
-
-      <div id="customColorWrap" style="display:none; margin-top:10px;">
-        <label for="ringColor">Custom colour</label>
-        <input id="ringColor" type="color" value="#00a39e" style="padding:6px; height:42px;">
-      </div>
-
-      <div class="actions">
-        <button id="runBtn" class="btn btnPrimary" type="button" disabled>Map hubs</button>
-        <button id="clearAllBtn" class="btn" type="button">Clear</button>
-      </div>
-
-      <div class="actions" style="margin-top:10px;">
-        <button id="fitRingBtn" class="btn btnSmall" type="button">Fit radius</button>
-        <button id="fitAllBtn" class="btn btnSmall" type="button">Fit all hubs</button>
-        <button id="resetViewBtn" class="btn btnSmall" type="button">Reset view</button>
-      </div>
-
-      <div class="stats">
-        <div class="stat"><div class="k">Inside radius</div><div class="v" id="inCount">0</div></div>
-        <div class="stat"><div class="k">Outside radius</div><div class="v" id="outCount">0</div></div>
-        <div class="stat"><div class="k">Mapped</div><div class="v" id="totalCount">0</div></div>
-      </div>
-
-      <div class="error" id="err"></div>
-      <div class="hint">On the map: <strong>hover</strong> (desktop) or <strong>tap</strong> (mobile) a hub icon to see the hub name.</div>
-    </section>
-
-    <div class="microHint" style="padding: 0 4px 10px;">
-      Basemap: CARTO Positron · Geocoding: postcodes.io · Hosted via GitHub Pages
     </div>
   </aside>
 
@@ -736,6 +823,112 @@
       .replaceAll("'", "&#039;");
   }
 
+  // Force uppercase as user types (centre + manual postcodes)
+  function attachUppercaseBehaviour(inputEl){
+    if (!inputEl) return;
+    inputEl.addEventListener("input", () => {
+      const start = inputEl.selectionStart;
+      const end = inputEl.selectionEnd;
+      const up = (inputEl.value || "").toUpperCase();
+      if (inputEl.value !== up){
+        inputEl.value = up;
+        // keep caret roughly stable
+        try { inputEl.setSelectionRange(start, end); } catch {}
+      }
+    });
+    inputEl.addEventListener("blur", () => {
+      inputEl.value = formatPostcode(inputEl.value);
+    });
+  }
+
+  // =========================
+  // Step gating / navigation
+  // =========================
+  const step1El = $("step1");
+  const step2El = $("step2");
+  const step3El = $("step3");
+
+  const toStep2Btn = $("toStep2Btn");
+  const toStep3Btn = $("toStep3Btn");
+  const backToStep1Btn = $("backToStep1Btn");
+  const backToStep2Btn = $("backToStep2Btn");
+
+  let currentStep = 1;
+
+  function lockStep(stepEl, locked){
+    if (!stepEl) return;
+    stepEl.classList.toggle("locked", locked);
+    stepEl.setAttribute("aria-disabled", locked ? "true" : "false");
+  }
+
+  function centreIsValid(){
+    return looksLikePostcode($("centre").value);
+  }
+
+  function hubsAreValid(){
+    if (hubMode === "bulk"){
+      return !!(uploadData && uploadData.validHubs && uploadData.validHubs.length);
+    }
+    // manual
+    const hubs = getManualHubs();
+    const valid = hubs.filter(h => h.postcode && looksLikePostcode(h.postcode));
+    const invalid = hubs.filter(h => h.postcode && !looksLikePostcode(h.postcode));
+    return valid.length > 0 && invalid.length === 0;
+  }
+
+  function updateStepLocks(){
+    // Step 2 locked until centre postcode is valid
+    const s2Unlocked = centreIsValid();
+    lockStep(step2El, !s2Unlocked);
+
+    // Step 3 locked until centre valid AND hubs valid
+    const s3Unlocked = centreIsValid() && hubsAreValid();
+    lockStep(step3El, !s3Unlocked);
+
+    // Step 1 -> Step 2 button
+    toStep2Btn.disabled = !s2Unlocked;
+
+    // Step 2 -> Step 3 button
+    toStep3Btn.disabled = !s3Unlocked;
+
+    // If current step is now locked, bump user back to the latest unlocked step
+    if (currentStep === 3 && !s3Unlocked){
+      currentStep = s2Unlocked ? 2 : 1;
+      scrollToStep(currentStep);
+    } else if (currentStep === 2 && !s2Unlocked){
+      currentStep = 1;
+      scrollToStep(1);
+    }
+  }
+
+  function scrollToStep(n){
+    const el = n === 1 ? step1El : (n === 2 ? step2El : step3El);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  toStep2Btn.addEventListener("click", () => {
+    if (toStep2Btn.disabled) return;
+    currentStep = 2;
+    scrollToStep(2);
+  });
+
+  toStep3Btn.addEventListener("click", () => {
+    if (toStep3Btn.disabled) return;
+    currentStep = 3;
+    scrollToStep(3);
+  });
+
+  backToStep1Btn.addEventListener("click", () => {
+    currentStep = 1;
+    scrollToStep(1);
+  });
+
+  backToStep2Btn.addEventListener("click", () => {
+    currentStep = 2;
+    scrollToStep(2);
+  });
+
   // =========================
   // Sidebar toggle
   // =========================
@@ -746,7 +939,7 @@
     toggleBtn.textContent = collapsed ? "›" : "‹";
     toggleBtn.setAttribute("aria-label", collapsed ? "Show sidebar" : "Hide sidebar");
     toggleBtn.title = collapsed ? "Show sidebar" : "Hide sidebar";
-    setTimeout(() => map.invalidateSize(), 200);
+    setTimeout(() => map.invalidateSize(), 220);
   });
 
   // =========================
@@ -785,10 +978,9 @@
   // =========================
   let hubMode = "bulk";     // bulk | manual
   let uploadData = null;    // { validHubs: [{name, postcode}], invalidRows: [...] }
-  let hubReady = false;
 
   function refreshReadiness(){
-    const centreOk = !!norm($("centre").value);
+    const centreOk = looksLikePostcode($("centre").value);
     const radiusKm = Number($("radius").value);
     const radiusOk = Number.isFinite(radiusKm) && radiusKm > 0;
 
@@ -802,6 +994,8 @@
     const ready = centreOk && radiusOk && hubsOk;
     pill($("readyStatus"), ready ? "ok" : "warn", ready ? "Ready" : "Not ready");
     $("runBtn").disabled = !ready;
+
+    updateStepLocks();
     return ready;
   }
 
@@ -877,6 +1071,7 @@
       $("panelBulk").style.display = "none";
       validateManual(true);
     }
+
     refreshReadiness();
   }
 
@@ -909,7 +1104,8 @@
     const pcInput = document.createElement("input");
     pcInput.placeholder = "Postcode";
     pcInput.autocapitalize = "characters";
-    pcInput.addEventListener("blur", () => { pcInput.value = formatPostcode(pcInput.value); validateManual(true); });
+    pcInput.classList.add("postcodeInput");
+    attachUppercaseBehaviour(pcInput);
     pcInput.addEventListener("input", debounce(() => validateManual(true), 150));
     cPc.appendChild(pcInput);
 
@@ -990,6 +1186,7 @@
       }
     }
 
+    refreshReadiness();
     return valid.length > 0 && invalid.length === 0;
   }
 
@@ -1240,6 +1437,7 @@
       const ringColor = getRingColor();
 
       if (!centrePc) throw new Error("Enter a central postcode.");
+      if (!looksLikePostcode(centrePc)) throw new Error("That central postcode doesn’t look valid.");
       if (!Number.isFinite(radiusKm) || radiusKm <= 0) throw new Error("Radius must be a positive number (km).");
 
       let hubs;
@@ -1370,17 +1568,29 @@
     for (let i=0; i<10; i++) addManualRow();
 
     setMode("bulk");
+    currentStep = 1;
+    scrollToStep(1);
     refreshReadiness();
   });
 
   // =========================
-  // Input watchers
+  // Input watchers + postcode behaviour
   // =========================
+  attachUppercaseBehaviour($("centre"));
+
+  $("centre").addEventListener("blur", () => {
+    $("centre").value = formatPostcode($("centre").value);
+    refreshReadiness();
+  });
+
   $("centre").addEventListener("input", debounce(refreshReadiness, 150));
   $("radius").addEventListener("input", debounce(refreshReadiness, 150));
 
   // Init
   setMode("bulk");
+  currentStep = 1;
+  lockStep(step2El, true);
+  lockStep(step3El, true);
   refreshReadiness();
 </script>
 </body>
